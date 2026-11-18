@@ -1,0 +1,233 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  SALES_EXECUTIVE
+}
+
+enum CustomerStatus {
+  ACTIVE
+  INACTIVE
+  PROSPECT
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  UNQUALIFIED
+  CONVERTED
+  LOST
+}
+
+enum LeadPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum FollowUpStatus {
+  PLANNED
+  COMPLETED
+  MISSED
+  CANCELLED
+}
+
+enum FollowUpType {
+  CALL
+  EMAIL
+  MEETING
+  DEMO
+  OTHER
+}
+
+enum OpportunityStage {
+  QUALIFICATION
+  PROPOSAL
+  NEGOTIATION
+  WON
+  LOST
+}
+
+enum AuditAction {
+  LOGIN_SUCCESS
+  LOGIN_FAILURE
+  LOGOUT
+  CREATE
+  UPDATE
+  DELETE
+  ROLE_CHANGE
+  PASSWORD_CHANGE
+  STATUS_CHANGE
+  CONVERT
+}
+
+model User {
+  id               String        @id @default(cuid())
+  name             String
+  email            String        @unique
+  passwordHash     String
+  role             Role          @default(SALES_EXECUTIVE)
+  isActive         Boolean       @default(true)
+  isLocked         Boolean       @default(false)
+  failedLoginCount Int           @default(0)
+  lockedAt         DateTime?
+  managerId        String?
+  manager          User?         @relation("UserManager", fields: [managerId], references: [id])
+  salesExecutives  User[]        @relation("UserManager")
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  customers        Customer[]
+  leads            Lead[]
+  followUps        FollowUp[]
+  opportunities    Opportunity[]
+  activities       Activity[]
+  auditLogs        AuditLog[]
+
+  @@index([email])
+  @@index([managerId])
+}
+
+model Customer {
+  id            String         @id @default(cuid())
+  name          String
+  email         String         @unique
+  phone         String?
+  companyName   String?
+  address       String?
+  city          String?
+  state         String?
+  status        CustomerStatus @default(PROSPECT)
+  notes         String?
+  assignedToId  String?
+  assignedTo    User?          @relation(fields: [assignedToId], references: [id])
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  leads         Lead[]
+  followUps     FollowUp[]
+  opportunities Opportunity[]
+  activities    Activity[]
+
+  @@index([email])
+  @@index([assignedToId])
+}
+
+model Lead {
+  id            String        @id @default(cuid())
+  name          String
+  email         String
+  phone         String?
+  companyName   String?
+  source        String?
+  status        LeadStatus    @default(NEW)
+  priority      LeadPriority  @default(MEDIUM)
+  expectedValue Float?
+  notes         String?
+  assignedToId  String?
+  assignedTo    User?         @relation(fields: [assignedToId], references: [id])
+  customerId    String?
+  customer      Customer?     @relation(fields: [customerId], references: [id])
+  convertedAt   DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  followUps     FollowUp[]
+  activities    Activity[]
+
+  @@index([email])
+  @@index([assignedToId])
+  @@index([customerId])
+  @@index([status])
+}
+
+model FollowUp {
+  id            String         @id @default(cuid())
+  subject       String
+  type          FollowUpType?
+  status        FollowUpStatus @default(PLANNED)
+  followUpDate  DateTime
+  notes         String?
+  assignedToId  String?
+  assignedTo    User?          @relation(fields: [assignedToId], references: [id])
+  customerId    String?
+  customer      Customer?      @relation(fields: [customerId], references: [id])
+  leadId        String?
+  lead          Lead?          @relation(fields: [leadId], references: [id])
+  opportunityId String?
+  opportunity   Opportunity?   @relation(fields: [opportunityId], references: [id])
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([assignedToId])
+  @@index([customerId])
+  @@index([leadId])
+  @@index([opportunityId])
+  @@index([followUpDate])
+}
+
+model Opportunity {
+  id                String           @id @default(cuid())
+  name              String
+  stage             OpportunityStage @default(QUALIFICATION)
+  amount            Float
+  probability       Int              @default(50)
+  expectedCloseDate DateTime
+  source            String?
+  notes             String?
+  customerId        String
+  customer          Customer         @relation(fields: [customerId], references: [id])
+  ownerId           String?
+  owner             User?            @relation(fields: [ownerId], references: [id])
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  followUps         FollowUp[]
+
+  @@index([customerId])
+  @@index([ownerId])
+  @@index([stage])
+}
+
+model Activity {
+  id           String    @id @default(cuid())
+  activityType String
+  subject      String
+  description  String?
+  activityDate DateTime  @default(now())
+  status       String    @default("COMPLETED")
+  assignedToId String?
+  assignedTo   User?     @relation(fields: [assignedToId], references: [id])
+  customerId   String?
+  customer     Customer? @relation(fields: [customerId], references: [id])
+  leadId       String?
+  lead         Lead?     @relation(fields: [leadId], references: [id])
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([assignedToId])
+  @@index([customerId])
+  @@index([leadId])
+}
+
+model AuditLog {
+  id        String      @id @default(cuid())
+  userId    String?
+  user      User?       @relation(fields: [userId], references: [id])
+  action    AuditAction
+  module    String
+  recordId  String?
+  result    String?
+  metadata  Json?
+  createdAt DateTime    @default(now())
+
+  @@index([userId])
+  @@index([module])
+  @@index([action])
+  @@index([createdAt])
+}
